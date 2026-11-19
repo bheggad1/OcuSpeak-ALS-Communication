@@ -1,0 +1,25 @@
+{
+  "model": "claude-haiku-5-5",
+  "max_words": 7,
+  "typing_pause_seconds": 0.6,
+  "request_timeout_seconds": 12,
+  "font_size": 20,
+  "dwell_enabled": true,
+  "dwell_seconds": 1.0,
+  "borderless": true,
+  "keyboard_window_classes": [
+    "OSKMainClass"
+  ],
+  "launch_keyboard_on_start": true,
+  "close_keyboard_on_exit": true,
+  "listening_enabled": true,
+  "listen_on_start": true,
+  "whisper_model": "base.en",
+  "language": "en",
+  "mic_min_level": 0.01,
+  "silence_seconds": 0.9,
+  "voice_name": "",
+  "voice_rate": 0,
+  "new_conversation_after_minutes": 15,
+  "save_transcripts": true
+}

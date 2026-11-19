@@ -1,0 +1,24 @@
+# ABOUT ME
+# OcuSpeak reads this file every time it makes suggestions, so the AI talks like you.
+# Write in plain sentences and fill in whatever you like. Lines starting with # are ignored.
+# Changes apply right away, with no restart needed.
+
+My name:
+
+How I like to talk (for example: casual, sarcastic, lots of jokes, polite, short and direct):
+
+People in my life (name, who they are):
+-
+-
+
+Caregivers and nurses:
+
+Places (home town, where I live, favorite places):
+
+Interests (teams, shows, music, hobbies):
+
+My daily routine:
+
+Things I often need or ask for:
+
+Topics or words to avoid:
