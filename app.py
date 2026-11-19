@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+from tkinter import font as tkfont
 from tkinter import simpledialog
 
 import config
@@ -53,7 +54,7 @@ else:
     }
     WEIGHT = "bold"
     RADIUS = 0
-DOCK_GAP = 8  # pixels between the bar and the keyboard
+DOCK_GAP = 2  # pixels (at 100% scaling) between the bar and the keyboard
 
 
 def rounded_rect(canvas, x1, y1, x2, y2, r, **kw):
@@ -116,19 +117,29 @@ class DwellButton(tk.Canvas):
         w, h = self.winfo_width(), self.winfo_height()
         if w <= 2:
             return
-        pad = 4
+        px = self.app.px
+        pad = px(4)
         fill = COLORS["fire"] if self.flash else (
             COLORS["btn_hover"] if self.hover and self.enabled else COLORS["btn"])
         border = COLORS["border"]
-        rounded_rect(self, pad, pad, w - pad, h - pad, RADIUS, fill=fill,
-                     outline=border, width=2 if border else 0)
+        rounded_rect(self, pad, pad, w - pad, h - pad, px(RADIUS), fill=fill,
+                     outline=border, width=px(2) if border else 0)
         if self.progress > 0:
-            inset = pad + 4
-            rounded_rect(self, inset, h - inset - 7, inset + (w - 2 * inset) * self.progress, h - inset,
-                         3 if RADIUS else 0, fill=COLORS["progress"], outline="")
-        self.create_text(w / 2, h / 2, text=self.text, font=self.font, justify="center",
-                         fill=COLORS["text"] if self.enabled else COLORS["sub"],
-                         width=max(10, w - 2 * pad - 16))
+            inset = pad + px(4)
+            rounded_rect(self, inset, h - inset - px(7), inset + (w - 2 * inset) * self.progress, h - inset,
+                         px(3) if RADIUS else 0, fill=COLORS["progress"], outline="")
+        # Shrink the text a little if a long sentence would spill out of the button.
+        family, size, *rest = self.font
+        max_w, max_h = max(10, w - 2 * pad - px(16)), h - 2 * pad - px(4)
+        while True:
+            item = self.create_text(w / 2, h / 2, text=self.text, font=(family, size, *rest),
+                                    justify="center", width=max_w,
+                                    fill=COLORS["text"] if self.enabled else COLORS["sub"])
+            box = self.bbox(item)
+            if size <= 8 or not box or box[3] - box[1] <= max_h:
+                break
+            self.delete(item)
+            size -= 1
 
     def _enter(self, _):
         if self.leave_id:  # came back within the grace period: keep dwelling
@@ -258,45 +269,63 @@ class App:
             return key.strip()
         return ""
 
+    def px(self, n):
+        """Converts a size in normal (100% scaling) pixels to real screen pixels."""
+        return int(round(n * self.scale))
+
     def _build_ui(self):
+        # Fonts are sized in points, which grow with Windows display scaling (150%, 200%...).
+        # Every pixel size below is measured from the real fonts so nothing gets clipped.
+        self.scale = max(1.0, self.root.winfo_fpixels("1i") / 96.0)
+        px = self.px
         fs = int(self.settings["font_size"])
         small = (FONT, max(11, int(fs * 0.7)))
         big = (FONT, fs)
         bold = (FONT, fs, WEIGHT)
-        tool_h = int(fs * 2.3)
+        btn_font = (FONT, max(11, int(fs * 0.7)), WEIGHT)
+        bold_f, btn_f = tkfont.Font(font=bold), tkfont.Font(font=btn_font)
+        line, btn_line = bold_f.metrics("linespace"), btn_f.metrics("linespace")
+        top_h = btn_line + px(22)  # small buttons in the top row
+        tool_h = line + px(26)  # Speak / Clear
+        sugg_h = 2 * line + px(30)  # suggestions: room for two lines of text
+
+        def btn_w(f, *texts):
+            return max(f.measure(t) for t in texts) + px(40)
 
         top = tk.Frame(self.root, bg=COLORS["bg"])
-        top.pack(fill="x", padx=6, pady=(4, 0))
+        top.pack(fill="x", padx=px(6), pady=(px(4), 0))
         self.heard_label = tk.Label(top, text="", font=small, fg=COLORS["them"], bg=COLORS["bg"], anchor="w")
         self.heard_label.pack(side="left", fill="x", expand=True)
         self.status_label = tk.Label(top, text="", font=small, fg=COLORS["sub"], bg=COLORS["bg"])
-        self.status_label.pack(side="left", padx=8)
-        btn_font = (FONT, max(11, int(fs * 0.7)), WEIGHT)
-        self.mic_btn = DwellButton(top, self, "", self._toggle_mic, btn_font, int(fs * 1.9), width=int(fs * 6.5))
+        self.status_label.pack(side="left", padx=px(8))
+        self.mic_btn = DwellButton(top, self, "", self._toggle_mic, btn_font, top_h,
+                                   width=btn_w(btn_f, "Mic: OFF", "Mic: n/a"))
         self.mic_btn.pack(side="left")
-        DwellButton(top, self, "New chat", self._new_chat, btn_font, int(fs * 1.9), width=int(fs * 6)).pack(side="left")
-        DwellButton(top, self, "✕", self.quit, btn_font, int(fs * 1.9), width=int(fs * 2.4),
+        DwellButton(top, self, "New chat", self._new_chat, btn_font, top_h,
+                    width=btn_w(btn_f, "New chat")).pack(side="left")
+        DwellButton(top, self, "✕", self.quit, btn_font, top_h, width=max(top_h, btn_w(btn_f, "✕")),
                     dwell=False, bind_double=True).pack(side="left")
         self._update_mic_btn()
 
         mid = tk.Frame(self.root, bg=COLORS["bg"])
-        mid.pack(fill="x", padx=6, pady=2)
+        mid.pack(fill="x", padx=px(6), pady=px(2))
         self.entry = tk.Entry(mid, font=big, relief="flat", bg=COLORS["entry_bg"], fg=COLORS["entry_fg"],
-                              insertbackground=COLORS["entry_fg"], insertwidth=3,
-                              highlightthickness=2, highlightbackground=COLORS["border"] or COLORS["bg"],
+                              insertbackground=COLORS["entry_fg"], insertwidth=px(3),
+                              highlightthickness=px(2), highlightbackground=COLORS["border"] or COLORS["bg"],
                               highlightcolor=COLORS["progress"])
-        self.entry.pack(side="left", fill="both", expand=True, padx=4, pady=4, ipady=int(fs * 0.3))
+        self.entry.pack(side="left", fill="both", expand=True, padx=px(4), pady=px(4), ipady=px(6))
         self.entry.bind("<KeyRelease>", self._on_key)
         self.entry.bind("<Return>", lambda e: self.speak(self.entry.get()))
         DwellButton(mid, self, "Speak", lambda: self.speak(self.entry.get()), bold, tool_h,
-                    width=int(fs * 6)).pack(side="left")
-        DwellButton(mid, self, "Clear", self._clear, bold, tool_h, width=int(fs * 5)).pack(side="left")
+                    width=btn_w(bold_f, "Speak")).pack(side="left")
+        DwellButton(mid, self, "Clear", self._clear, bold, tool_h, width=btn_w(bold_f, "Clear")).pack(side="left")
 
         bottom = tk.Frame(self.root, bg=COLORS["bg"])
-        bottom.pack(fill="x", padx=6, pady=(0, 6))
+        bottom.pack(fill="x", padx=px(6), pady=(0, px(6)))
         self.sugg_btns = []
         for i in range(3):
-            b = DwellButton(bottom, self, "", lambda i=i: self.speak(self.suggestions[i]), bold, int(fs * 3.4))
+            # width=1 so the three buttons always share the row equally, whatever their text.
+            b = DwellButton(bottom, self, "", lambda i=i: self.speak(self.suggestions[i]), bold, sugg_h, width=1)
             b.pack(side="left", fill="x", expand=True)
             self.sugg_btns.append(b)
 
@@ -313,9 +342,9 @@ class App:
                 title_bar = max(0, self.root.winfo_rooty() - self.root.winfo_y())
                 if IS_MAC and not title_bar and not self.settings["borderless"]:
                     title_bar = 28  # standard Mac title bar height, before the window reports it
-                y = top - DOCK_GAP - h - title_bar
+                y = top - self.px(DOCK_GAP) - h - title_bar
                 if y < 0:
-                    y = bottom + DOCK_GAP
+                    y = bottom + self.px(DOCK_GAP)
             else:
                 area = dock.work_area() or (0, 0, self.root.winfo_screenwidth(), self.root.winfo_screenheight())
                 x, w, y = area[0], area[2] - area[0], area[3] - h

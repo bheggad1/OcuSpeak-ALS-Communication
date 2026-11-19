@@ -95,6 +95,13 @@ def find_keyboard_rect(class_names):
         hwnd = user32.FindWindowW(cls, None)
         if hwnd and user32.IsWindowVisible(hwnd) and not user32.IsIconic(hwnd):
             rect = wintypes.RECT()
+            # The visible edges, without Windows' invisible resize borders, so the bar lines up exactly.
+            try:
+                if ctypes.windll.dwmapi.DwmGetWindowAttribute(
+                        wintypes.HWND(hwnd), 9, ctypes.byref(rect), ctypes.sizeof(rect)) == 0:  # EXTENDED_FRAME_BOUNDS
+                    return rect.left, rect.top, rect.right, rect.bottom
+            except Exception:
+                pass
             if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
                 return rect.left, rect.top, rect.right, rect.bottom
     return None
